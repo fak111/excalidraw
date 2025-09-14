@@ -40,7 +40,7 @@ export const AIComponents = ({
           const response = await fetch(
             `${
               import.meta.env.VITE_APP_AI_BACKEND
-            }/v1/ai/diagram-to-code/generate`,
+            }/v1/ai/diagram-to-code-intern/generate`,//use intern-s1
             {
               method: "POST",
               headers: {
