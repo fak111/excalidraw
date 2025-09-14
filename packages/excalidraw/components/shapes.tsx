@@ -113,5 +113,16 @@ export const findShapeByKey = (key: string, app: AppClassProperties) => {
           : (shape.key as readonly string[]).includes(key)))
     );
   });
+
+  // 🔍 学习日志：跟踪工具选择
+  if (shape) {
+    console.log('📋 工具选择:', {
+      key: key,
+      selectedTool: shape.value,
+      icon: shape.icon || '未知图标',
+      快捷键: shape.key
+    });
+  }
+
   return shape?.value || null;
 };

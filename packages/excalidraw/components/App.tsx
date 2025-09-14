@@ -4794,6 +4794,13 @@ class App extends React.Component<AppProps, AppState> {
     },
     keepSelection = false,
   ) => {
+    console.log('🔧 [setActiveTool] 工具切换:', {
+      previousTool: this.state.activeTool,
+      newTool: tool,
+      keepSelection,
+      timestamp: new Date().toLocaleTimeString()
+    });
+    
     if (!this.isToolSupported(tool.type)) {
       console.warn(
         `"${tool.type}" tool is disabled via "UIOptions.canvasActions.tools.${tool.type}"`,
@@ -4861,6 +4868,11 @@ class App extends React.Component<AppProps, AppState> {
         activeTool: nextActiveTool,
         ...commonResets,
       };
+    });
+    
+    console.log('✅ [setActiveTool] 工具切换完成:', {
+      currentActiveTool: this.state.activeTool,
+      timestamp: new Date().toLocaleTimeString()
     });
   };
 
