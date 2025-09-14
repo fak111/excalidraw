@@ -160,22 +160,22 @@ export const newElement = (
     type: ExcalidrawGenericElement["type"];
   } & ElementConstructorOpts,
 ): NonDeleted<ExcalidrawGenericElement> => {
-  console.log('🎨 [newElement] 创建新元素:', {
-    type: opts.type,
-    position: { x: opts.x, y: opts.y },
-    dimensions: { width: opts.width, height: opts.height },
-    timestamp: new Date().toLocaleTimeString()
-  });
-  
+  // console.log('🎨 [newElement] 创建新元素:', {
+  //   type: opts.type,
+  //   position: { x: opts.x, y: opts.y },
+  //   dimensions: { width: opts.width, height: opts.height },
+  //   timestamp: new Date().toLocaleTimeString()
+  // });
+
   const element = _newElementBase<ExcalidrawGenericElement>(opts.type, opts);
-  
-  console.log('✅ [newElement] 元素创建完成:', {
-    id: element.id,
-    type: element.type,
-    finalPosition: { x: element.x, y: element.y },
-    finalDimensions: { width: element.width, height: element.height }
-  });
-  
+
+  // console.log('✅ [newElement] 元素创建完成:', {
+  //   id: element.id,
+  //   type: element.type,
+  //   finalPosition: { x: element.x, y: element.y },
+  //   finalDimensions: { width: element.width, height: element.height }
+  // });
+
   return element;
 };
 

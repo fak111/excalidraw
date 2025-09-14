@@ -395,6 +395,7 @@ import {
   setCursorForShape,
 } from "../cursor";
 import { ElementCanvasButtons } from "../components/ElementCanvasButtons";
+import { AISelectionButtons } from "../components/AISelectionButtons";
 import { LaserTrails } from "../laser-trails";
 import { withBatchedUpdates, withBatchedUpdatesThrottled } from "../reactUtils";
 import { textWysiwyg } from "../wysiwyg/textWysiwyg";
@@ -1681,6 +1682,14 @@ class App extends React.Component<AppProps, AppState> {
                                 }
                               />
                             </ElementCanvasButtons>
+                          )}
+                        {this.props.aiEnabled !== false &&
+                          selectedElements.length > 0 &&
+                          this.plugins.diagramToCode && (
+                            <AISelectionButtons
+                              selectedElements={selectedElements}
+                              elementsMap={elementsMap}
+                            />
                           )}
                         {selectedElements.length === 1 &&
                           isIframeElement(firstSelectedElement) &&
@@ -6798,33 +6807,39 @@ class App extends React.Component<AppProps, AppState> {
         pointerDownState.hit.wasAddedToSelection = true;
       }
     } else if (this.state.activeTool.type === "text") {
+      console.log('📝 [PointerDown] 处理文本工具');
       this.handleTextOnPointerDown(event, pointerDownState);
     } else if (
       this.state.activeTool.type === "arrow" ||
       this.state.activeTool.type === "line"
     ) {
+      console.log('➡️ [PointerDown] 处理线性元素:', this.state.activeTool.type);
       this.handleLinearElementOnPointerDown(
         event,
         this.state.activeTool.type,
         pointerDownState,
       );
     } else if (this.state.activeTool.type === "freedraw") {
+      console.log('✏️ [PointerDown] 处理自由绘制');
       this.handleFreeDrawElementOnPointerDown(
         event,
         this.state.activeTool.type,
         pointerDownState,
       );
     } else if (this.state.activeTool.type === "custom") {
+      console.log('🧑‍💻 [PointerDown] 处理自定义工具');
       setCursorForShape(this.interactiveCanvas, this.state);
     } else if (
       this.state.activeTool.type === TOOL_TYPE.frame ||
       this.state.activeTool.type === TOOL_TYPE.magicframe
     ) {
+      console.log('🖼️ [PointerDown] 创建框架元素:', this.state.activeTool.type);
       this.createFrameElementOnPointerDown(
         pointerDownState,
         this.state.activeTool.type,
       );
     } else if (this.state.activeTool.type === "laser") {
+      console.log('🔴 [PointerDown] 处理激光笔');
       this.laserTrails.startPath(
         pointerDownState.lastCoords.x,
         pointerDownState.lastCoords.y,
@@ -6834,6 +6849,10 @@ class App extends React.Component<AppProps, AppState> {
       this.state.activeTool.type !== "hand" &&
       this.state.activeTool.type !== "image"
     ) {
+      console.log('🟦 [PointerDown] 创建通用元素:', this.state.activeTool.type, {
+        position: { x: pointerDownState.origin.x, y: pointerDownState.origin.y },
+        timestamp: new Date().toLocaleTimeString()
+      });
       this.createGenericElementOnPointerDown(
         this.state.activeTool.type,
         pointerDownState,
@@ -7128,6 +7147,18 @@ class App extends React.Component<AppProps, AppState> {
     const selectedElements = this.scene.getSelectedElements(this.state);
     const [minX, minY, maxX, maxY] = getCommonBounds(selectedElements);
     const isElbowArrowOnly = selectedElements.findIndex(isElbowArrow) === 0;
+    
+    console.log('🎨 [initialPointerDownState] 初始化指针状态:', {
+      origin,
+      selectedElementsCount: selectedElements.length,
+      boundingBox: { minX, minY, maxX, maxY },
+      withModifierKeys: {
+        cmd: event[KEYS.CTRL_OR_CMD],
+        shift: event.shiftKey,
+        alt: event.altKey
+      },
+      currentTool: this.state.activeTool.type
+    });
 
     return {
       origin,
@@ -8098,6 +8129,12 @@ class App extends React.Component<AppProps, AppState> {
     elementType: ExcalidrawGenericElement["type"] | "embeddable",
     pointerDownState: PointerDownState,
   ): void => {
+    console.log('🎯 [createGenericElement] 开始创建通用元素:', {
+      elementType,
+      originPosition: pointerDownState.origin,
+      timestamp: new Date().toLocaleTimeString()
+    });
+    
     const [gridX, gridY] = getGridPoint(
       pointerDownState.origin.x,
       pointerDownState.origin.y,
@@ -8105,6 +8142,8 @@ class App extends React.Component<AppProps, AppState> {
         ? null
         : this.getEffectiveGridSize(),
     );
+    
+    console.log('🗺️ [createGenericElement] 网格对齐后的位置:', { gridX, gridY });
 
     const topLayerFrame = this.getTopLayerFrameAtSceneCoords({
       x: gridX,
@@ -8139,11 +8178,20 @@ class App extends React.Component<AppProps, AppState> {
       });
     }
 
+    console.log('✨ [createGenericElement] 元素创建完成:', {
+      elementId: element.id,
+      elementType: element.type,
+      position: { x: element.x, y: element.y },
+      dimensions: { width: element.width, height: element.height }
+    });
+    
     if (element.type === "selection") {
+      console.log('🟦 [createGenericElement] 设置为选择元素');
       this.setState({
         selectionElement: element,
       });
     } else {
+      console.log('📥 [createGenericElement] 插入元素到场景中:', element.id);
       this.scene.insertElement(element);
       this.setState({
         multiElement: null,
