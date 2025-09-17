@@ -16,7 +16,7 @@ import type {
 
 import { useExcalidrawAppState, useApp } from "../components/App";
 import { ElementCanvasButton } from "./MagicButton";
-import { MagicIcon } from "./icons";
+import { MagicIcon, PromptIcon } from "./icons";
 import { t } from "../i18n";
 
 import "./ElementCanvasButtons.scss";
@@ -109,6 +109,10 @@ export const AISelectionButtons = ({
   const handleWireframeToCode = () => {
     app.onMagicframeToolSelect();
   };
+  
+  const handleMagicPrompt = () => {
+    app.onMagicPromptToolSelect();
+  };
 
   return (
     <div
@@ -128,7 +132,12 @@ export const AISelectionButtons = ({
         checked={false}
         onChange={handleWireframeToCode}
       />
-      {/* 可以在这里添加更多 AI 功能按钮 */}
+      <ElementCanvasButton
+        title={t("toolBar.magicprompt")}
+        icon={PromptIcon}
+        checked={false}
+        onChange={handleMagicPrompt}
+      />
     </div>
   );
 };

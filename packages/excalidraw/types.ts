@@ -363,7 +363,8 @@ export interface AppState {
     | { name: "imageExport" | "help" | "jsonExport" }
     | { name: "ttd"; tab: "text-to-diagram" | "mermaid" }
     | { name: "commandPalette" }
-    | { name: "elementLinkSelector"; sourceElementId: ExcalidrawElement["id"] };
+    | { name: "elementLinkSelector"; sourceElementId: ExcalidrawElement["id"] }
+    | { name: "promptDialog" };
 
   /**
    * Reflects user preference for whether the default sidebar should be docked.
@@ -726,6 +727,8 @@ export type AppClassProperties = {
   setOpenDialog: App["setOpenDialog"];
   insertEmbeddableElement: App["insertEmbeddableElement"];
   onMagicframeToolSelect: App["onMagicframeToolSelect"];
+  onMagicPromptToolSelect: App["onMagicPromptToolSelect"];
+  onPromptSubmit: App["onPromptSubmit"];
   getName: App["getName"];
   dismissLinearEditor: App["dismissLinearEditor"];
   flowChartCreator: App["flowChartCreator"];

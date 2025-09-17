@@ -300,6 +300,7 @@
     "eraser": "Eraser",
     "frame": "Frame tool",
     "magicframe": "Wireframe to code",
+    "magicprompt": "AI Chat",
     "embeddable": "Web Embed",
     "laser": "Laser pointer",
     "hand": "Hand (panning tool)",
@@ -625,6 +626,12 @@
       "micMuted": "User's microphone is muted",
       "isSpeaking": "User is speaking"
     }
+  },
+  "promptDialog": {
+    "title": "AI Chat",
+    "description": "Ask AI a question about your drawing or get help with anything. The selected text elements will be used as context.",
+    "placeholder": "Ask AI a question about your drawing...",
+    "generating": "Generating..."
   },
   "commandPalette": {
     "title": "Command palette",

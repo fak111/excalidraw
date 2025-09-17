@@ -1,0 +1,82 @@
+.prompt-dialog {
+  .dialog-container {
+    min-width: 480px;
+    max-width: 600px;
+  }
+
+  .prompt-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .prompt-dialog-description {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .prompt-dialog-input {
+    min-height: 120px;
+    font-family: var(--font-family-monospace);
+    font-size: 14px;
+    line-height: 1.4;
+    resize: vertical;
+    
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  .prompt-dialog-error {
+    color: var(--color-danger);
+    font-size: 14px;
+    padding: 8px 12px;
+    background: var(--color-danger-background);
+    border: 1px solid var(--color-danger-border);
+    border-radius: 4px;
+  }
+
+  .prompt-dialog-char-count {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    text-align: right;
+    
+    &.over-limit {
+      color: var(--color-danger);
+    }
+  }
+
+  .prompt-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: auto;
+  }
+}
+
+// 移动端适配
+@media (max-width: 640px) {
+  .prompt-dialog {
+    .dialog-container {
+      min-width: auto;
+      max-width: 90vw;
+      margin: 20px;
+    }
+
+    .prompt-dialog-content {
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .prompt-dialog-actions {
+      flex-direction: column-reverse;
+      
+      .dialog-action-button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  }
+}

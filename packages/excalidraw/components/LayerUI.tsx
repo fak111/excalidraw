@@ -51,6 +51,7 @@ import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { LibraryIcon } from "./icons";
 import { DefaultSidebar } from "./DefaultSidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
+import { PromptDialog } from "./PromptDialog/PromptDialog";
 import { Stats } from "./Stats";
 import ElementLinkDialog from "./ElementLinkDialog";
 import { ErrorDialog } from "./ErrorDialog";
@@ -486,6 +487,11 @@ const LayerUI = ({
       </DefaultSidebar.Trigger>
       <DefaultOverwriteConfirmDialog />
       {appState.openDialog?.name === "ttd" && <TTDDialog __fallback />}
+      {appState.openDialog?.name === "promptDialog" && (
+        <PromptDialog
+          onPromptSubmit={app.onPromptSubmit}
+        />
+      )}
       {/* ------------------------------------------------------------------ */}
 
       {appState.isLoading && <LoadingMessage delay={250} />}

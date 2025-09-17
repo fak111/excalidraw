@@ -106,11 +106,15 @@ export type MagicGenerationData =
   | {
       status: "pending";
     }
-  | { status: "done"; html: string }
+  | { status: "generating"; text?: string; html?: string; error?: string }
+  | { status: "done"; html: string; text?: string }
   | {
       status: "error";
       message?: string;
-      code: "ERR_GENERATION_INTERRUPTED" | string;
+      code?: "ERR_GENERATION_INTERRUPTED" | string;
+      text?: string;
+      html?: string;
+      error?: string;
     };
 
 export type ExcalidrawIframeElement = _ExcalidrawElementBase &

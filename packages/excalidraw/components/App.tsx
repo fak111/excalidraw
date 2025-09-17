@@ -240,6 +240,7 @@ import {
   StoreDelta,
   type ApplyToOptions,
   positionElementsOnGrid,
+  getTextFromElements,
 } from "@excalidraw/element";
 
 import type { LocalPoint, Radians } from "@excalidraw/math";
@@ -334,6 +335,7 @@ import {
 } from "../clipboard";
 
 import { exportCanvas, loadFromBlob } from "../data";
+import { exportToBlob } from "@excalidraw/utils/export";
 import Library, { distributeLibraryItemsOnSquareGrid } from "../data/library";
 import { restore, restoreElements } from "../data/restore";
 import { getCenter, getDistance } from "../gesture";
@@ -1157,10 +1159,10 @@ class App extends React.Component<AppProps, AppState> {
               } as const;
             } else {
               let message: string;
-              if (data.code === "ERR_GENERATION_INTERRUPTED") {
+              if (data.status === "error" && data.code === "ERR_GENERATION_INTERRUPTED") {
                 message = "Generation was interrupted...";
               } else {
-                message = data.message || "Generation failed";
+                message = (data.status === "error" && data.message) || "Generation failed";
               }
               src = {
                 intrinsicSize: { w: el.width, h: el.height },
@@ -1183,8 +1185,7 @@ class App extends React.Component<AppProps, AppState> {
                         margin-bottom: 0.5rem;
                       }
                     </style>
-                    <h1>Error!</h1>
-                    <h3>${message}</h3>
+                    <h1>Generating..</h1>
                   `);
                 },
               } as const;
@@ -1229,22 +1230,6 @@ class App extends React.Component<AppProps, AppState> {
               }}
             >
               <div
-                //this is a hack that addresses isse with embedded excalidraw.com embeddable
-                //https://github.com/excalidraw/excalidraw/pull/6691#issuecomment-1607383938
-                /*ref={(ref) => {
-                  if (!this.excalidrawContainerRef.current) {
-                    return;
-                  }
-                  const container = this.excalidrawContainerRef.current;
-                  const sh = container.scrollHeight;
-                  const ch = container.clientHeight;
-                  if (sh !== ch) {
-                    container.style.height = `${sh}px`;
-                    setTimeout(() => {
-                      container.style.height = `100%`;
-                    });
-                  }
-                }}*/
                 className="excalidraw__embeddable-container__inner"
                 style={{
                   width: isVisible ? `${el.width}px` : 0,
@@ -2071,7 +2056,9 @@ class App extends React.Component<AppProps, AppState> {
 
   private onIframeSrcCopy(element: ExcalidrawIframeElement) {
     if (element.customData?.generationData?.status === "done") {
-      copyTextToSystemClipboard(element.customData.generationData.html);
+      // 优先复制纯文本，如果没有则复制HTML
+      const contentToCopy = element.customData.generationData.text || element.customData.generationData.html || "";
+      copyTextToSystemClipboard(contentToCopy);
       this.setToast({
         message: "copied to clipboard",
         closable: false,
@@ -2140,6 +2127,374 @@ class App extends React.Component<AppProps, AppState> {
 
       this.onMagicFrameGenerate(frame, "upstream");
     }
+  };
+
+  public onMagicPromptToolSelect = () => {
+    const selectedElements = this.scene.getSelectedElements({
+      selectedElementIds: this.state.selectedElementIds,
+    });
+
+    trackEvent("ai", "prompt-tool-select", "magic-prompt");
+
+    // 打开prompt对话框
+    this.setState({
+      openDialog: { name: "promptDialog" },
+    });
+  };
+
+  public onPromptSubmit = (prompt: string) => {
+    const selectedElements = this.scene.getSelectedElements({
+      selectedElementIds: this.state.selectedElementIds,
+    });
+
+    trackEvent("ai", "prompt-submit", "magic-prompt");
+
+    // 立即创建一个"正在生成"状态的iframe
+    const framePosition = this.getTextIframePosition(selectedElements);
+    const textIframeElement = this.insertTextIframeElement({
+      sceneX: framePosition.x,
+      sceneY: framePosition.y,
+      width: 400,
+      height: 300,
+      text: "", // 空文本
+      status: "generating", // 生成中状态
+    });
+
+    if (textIframeElement) {
+      this.setState({
+        selectedElementIds: { [textIframeElement.id]: true },
+      });
+
+      // 异步处理AI请求
+      this.processPromptRequest(prompt, selectedElements, textIframeElement.id);
+    }
+  };
+
+  private processPromptRequest = async (
+    prompt: string,
+    selectedElements: readonly NonDeletedExcalidrawElement[],
+    iframeElementId: string,
+  ) => {
+    try {
+      // 检查 AI 后端环境变量是否配置
+      const aiBackendUrl = import.meta.env.VITE_APP_AI_BACKEND;
+      if (!aiBackendUrl) {
+        throw new Error("AI backend URL not configured. Please set VITE_APP_AI_BACKEND environment variable.");
+      }
+
+      // 准备请求数据
+      let imageDataURL: string | undefined;
+      let contextTexts = "";
+
+      if (selectedElements.length > 0) {
+        // 导出选中元素为图像
+        try {
+          const blob = await exportToBlob({
+            elements: selectedElements,
+            appState: {
+              ...this.state,
+              exportBackground: true,
+              viewBackgroundColor: this.state.viewBackgroundColor,
+            },
+            files: this.files,
+            mimeType: MIME_TYPES.jpg,
+          });
+          imageDataURL = await getDataURL(blob);
+        } catch (error) {
+          console.warn("Failed to export selected elements to image:", error);
+        }
+
+        // 获取选中元素的文本内容
+        contextTexts = getTextFromElements(selectedElements);
+      }
+
+      // 调用后端 API
+      const response = await fetch(
+        `${aiBackendUrl}/v1/ai/diagram-to-text-intern/generate`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            texts: contextTexts || undefined,
+            image: imageDataURL,
+            theme: this.state.theme,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const { text } = await response.json();
+
+      if (!text || !text.trim()) {
+        throw new Error("Empty response from AI service");
+      }
+
+      // 更新iframe内容为成功结果
+      this.updateTextIframeElement(iframeElementId, {
+        text: text.trim(),
+        status: "done",
+      });
+
+      trackEvent("ai", "prompt-success", "magic-prompt");
+    } catch (error: any) {
+      trackEvent("ai", "prompt-failed", "magic-prompt");
+      console.error("Prompt submission failed:", error);
+
+      // 更新iframe内容为错误状态
+      this.updateTextIframeElement(iframeElementId, {
+        text: "",
+        status: "error",
+        error: error.message || "Unknown error",
+      });
+    }
+  };
+
+  private getTextIframePosition = (
+    selectedElements: readonly NonDeletedExcalidrawElement[],
+  ) => {
+    if (selectedElements.length === 0) {
+      // 如果没有选中元素，在视窗中心创建
+      const { x, y } = sceneCoordsToViewportCoords(
+        {
+          sceneX: this.state.scrollX + this.state.width / 2,
+          sceneY: this.state.scrollY + this.state.height / 2,
+        },
+        this.state,
+      );
+      return {
+        x: x - this.state.offsetLeft,
+        y: y - this.state.offsetTop,
+      };
+    }
+
+    // 在选中元素的右侧创建
+    const [x1, y1, x2, y2] = getCommonBounds(selectedElements);
+    return {
+      x: x2 + 50,
+      y: y1,
+    };
+  };
+
+  private insertTextIframeElement = ({
+    sceneX,
+    sceneY,
+    width,
+    height,
+    text,
+    status = "done",
+    error,
+  }: {
+    sceneX: number;
+    sceneY: number;
+    width: number;
+    height: number;
+    text: string;
+    status?: "generating" | "done" | "error";
+    error?: string;
+  }) => {
+    // 根据状态生成不同的HTML内容
+    const textHtml = this.generateIframeHTML(text, status, error);
+
+    const iframe = newIframeElement({
+      type: "iframe",
+      x: sceneX,
+      y: sceneY,
+      width,
+      height,
+      opacity: 100,
+      locked: false,
+      customData: {
+        generationData: {
+          status: status,
+          text: text,
+          html: textHtml,
+          error: error,
+        },
+      },
+    });
+
+    this.scene.insertElement(iframe);
+    return iframe;
+  };
+
+  private generateIframeHTML = (
+    text: string,
+    status: "generating" | "done" | "error" | "pending",
+    error?: string,
+  ) => {
+    const isDark = this.state.theme === "dark";
+    const bgColor = isDark ? "#1e1e1e" : "#ffffff";
+    const textColor = isDark ? "#ffffff" : "#000000";
+    const borderColor = isDark ? "#333" : "#eee";
+    const mutedColor = isDark ? "#888" : "#666";
+    const errorColor = isDark ? "#ff6b6b" : "#dc3545";
+
+    let content = "";
+    let footer = "";
+
+    if (status === "generating" || status === "pending") {
+      content = `
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <div class="loading-text">正在生成回答...</div>
+        </div>`;
+      footer = "AI 正在处理您的请求";
+    } else if (status === "error") {
+      content = `
+        <div class="error-container">
+          <div class="error-icon">⚠️</div>
+          <div class="error-text">生成失败</div>
+          <div class="error-message">${error || '未知错误'}</div>
+          <div class="error-hint">请重新尝试发送您的问题</div>
+        </div>`;
+      footer = "可以关闭此窗口并重新尝试";
+    } else {
+      content = `
+        <div class="content">
+          ${text.replace(/\n/g, '<br>').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        </div>`;
+      footer = "Generated by AI • Click to copy";
+    }
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Generated Text</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 16px;
+            background: ${bgColor};
+            color: ${textColor};
+            font-size: 14px;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 32px);
+        }
+        .content {
+            max-width: 100%;
+            flex: 1;
+        }
+        .loading-container, .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid ${borderColor};
+            border-top: 2px solid ${textColor};
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .error-container {
+            color: ${errorColor};
+        }
+        .error-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .error-text {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .error-message {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: ${mutedColor};
+        }
+        .error-hint {
+            font-size: 12px;
+            color: ${mutedColor};
+        }
+        .footer {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid ${borderColor};
+            font-size: 12px;
+            color: ${mutedColor};
+            text-align: center;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    ${content}
+    <div class="footer">
+        ${footer}
+    </div>
+</body>
+</html>`;
+  };
+
+  private updateTextIframeElement = (
+    elementId: string,
+    update: {
+      text?: string;
+      status?: "generating" | "done" | "error";
+      error?: string;
+    },
+  ) => {
+    const element = this.scene.getElement(elementId);
+    if (!element || !isIframeElement(element)) {
+      console.warn("Element not found or is not an iframe element:", elementId);
+      return;
+    }
+
+    const currentData = element.customData?.generationData;
+    if (!currentData) {
+      console.warn("Element does not have generationData:", elementId);
+      return;
+    }
+
+    const newStatus = update.status || currentData.status;
+    const newText = update.text !== undefined ? update.text : (currentData.status === "done" ? currentData.text || "" : "");
+    const newError = update.error !== undefined ? update.error : (currentData.status === "error" ? currentData.error : undefined);
+
+    // 生成新的HTML内容
+    const newHtml = this.generateIframeHTML(newText, newStatus, newError);
+
+    // 更新元素的customData
+    this.scene.mutateElement(element, {
+      customData: {
+        ...element.customData,
+        generationData: {
+          status: newStatus,
+          text: newText,
+          html: newHtml,
+          error: newError,
+        },
+      },
+    });
   };
 
   private openEyeDropper = ({ type }: { type: "stroke" | "background" }) => {
@@ -4809,7 +5164,7 @@ class App extends React.Component<AppProps, AppState> {
       keepSelection,
       timestamp: new Date().toLocaleTimeString()
     });
-    
+
     if (!this.isToolSupported(tool.type)) {
       console.warn(
         `"${tool.type}" tool is disabled via "UIOptions.canvasActions.tools.${tool.type}"`,
@@ -4878,7 +5233,7 @@ class App extends React.Component<AppProps, AppState> {
         ...commonResets,
       };
     });
-    
+
     console.log('✅ [setActiveTool] 工具切换完成:', {
       currentActiveTool: this.state.activeTool,
       timestamp: new Date().toLocaleTimeString()
@@ -6849,10 +7204,10 @@ class App extends React.Component<AppProps, AppState> {
       this.state.activeTool.type !== "hand" &&
       this.state.activeTool.type !== "image"
     ) {
-      console.log('🟦 [PointerDown] 创建通用元素:', this.state.activeTool.type, {
-        position: { x: pointerDownState.origin.x, y: pointerDownState.origin.y },
-        timestamp: new Date().toLocaleTimeString()
-      });
+      // console.log('🟦 [PointerDown] 创建通用元素:', this.state.activeTool.type, {
+      //   position: { x: pointerDownState.origin.x, y: pointerDownState.origin.y },
+      //   timestamp: new Date().toLocaleTimeString()
+      // });
       this.createGenericElementOnPointerDown(
         this.state.activeTool.type,
         pointerDownState,
@@ -7147,18 +7502,18 @@ class App extends React.Component<AppProps, AppState> {
     const selectedElements = this.scene.getSelectedElements(this.state);
     const [minX, minY, maxX, maxY] = getCommonBounds(selectedElements);
     const isElbowArrowOnly = selectedElements.findIndex(isElbowArrow) === 0;
-    
-    console.log('🎨 [initialPointerDownState] 初始化指针状态:', {
-      origin,
-      selectedElementsCount: selectedElements.length,
-      boundingBox: { minX, minY, maxX, maxY },
-      withModifierKeys: {
-        cmd: event[KEYS.CTRL_OR_CMD],
-        shift: event.shiftKey,
-        alt: event.altKey
-      },
-      currentTool: this.state.activeTool.type
-    });
+
+    // console.log('🎨 [initialPointerDownState] 初始化指针状态:', {
+    //   origin,
+    //   selectedElementsCount: selectedElements.length,
+    //   boundingBox: { minX, minY, maxX, maxY },
+    //   withModifierKeys: {
+    //     cmd: event[KEYS.CTRL_OR_CMD],
+    //     shift: event.shiftKey,
+    //     alt: event.altKey
+    //   },
+    //   currentTool: this.state.activeTool.type
+    // });
 
     return {
       origin,
@@ -8129,12 +8484,12 @@ class App extends React.Component<AppProps, AppState> {
     elementType: ExcalidrawGenericElement["type"] | "embeddable",
     pointerDownState: PointerDownState,
   ): void => {
-    console.log('🎯 [createGenericElement] 开始创建通用元素:', {
-      elementType,
-      originPosition: pointerDownState.origin,
-      timestamp: new Date().toLocaleTimeString()
-    });
-    
+    // console.log('🎯 [createGenericElement] 开始创建通用元素:', {
+    //   elementType,
+    //   originPosition: pointerDownState.origin,
+    //   timestamp: new Date().toLocaleTimeString()
+    // });
+
     const [gridX, gridY] = getGridPoint(
       pointerDownState.origin.x,
       pointerDownState.origin.y,
@@ -8142,8 +8497,8 @@ class App extends React.Component<AppProps, AppState> {
         ? null
         : this.getEffectiveGridSize(),
     );
-    
-    console.log('🗺️ [createGenericElement] 网格对齐后的位置:', { gridX, gridY });
+
+    // console.log('🗺️ [createGenericElement] 网格对齐后的位置:', { gridX, gridY });
 
     const topLayerFrame = this.getTopLayerFrameAtSceneCoords({
       x: gridX,
@@ -8178,20 +8533,20 @@ class App extends React.Component<AppProps, AppState> {
       });
     }
 
-    console.log('✨ [createGenericElement] 元素创建完成:', {
-      elementId: element.id,
-      elementType: element.type,
-      position: { x: element.x, y: element.y },
-      dimensions: { width: element.width, height: element.height }
-    });
-    
+    // console.log('✨ [createGenericElement] 元素创建完成:', {
+    //   elementId: element.id,
+    //   elementType: element.type,
+    //   position: { x: element.x, y: element.y },
+    //   dimensions: { width: element.width, height: element.height }
+    // });
+
     if (element.type === "selection") {
-      console.log('🟦 [createGenericElement] 设置为选择元素');
+      // console.log('🟦 [createGenericElement] 设置为选择元素');
       this.setState({
         selectionElement: element,
       });
     } else {
-      console.log('📥 [createGenericElement] 插入元素到场景中:', element.id);
+      // console.log('📥 [createGenericElement] 插入元素到场景中:', element.id);
       this.scene.insertElement(element);
       this.setState({
         multiElement: null,
