@@ -42,12 +42,12 @@
 ### `.env.local` 配置
 ```bash
 # InternLM Configuration (用于图像内容提取)
-INTERN_API_KEY=sk-PAAN3wDKakxp3Zek9ntaqnweQANhBPbM81oIj1haOOwQzD8F
+INTERN_API_KEY=sk-xx
 INTERN_BASE_URL=https://chat.intern-ai.org.cn/api/v1
 INTERN_MODEL_NAME=intern-s1
 
 # DeepSeek Configuration (用于代码生成)
-DEEPSEEK_API_KEY=sk-e33aabd89a1a47758b92e5217ccad922
+DEEPSEEK_API_KEY=sk-xx
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_MODEL_NAME=deepseek-chat
 ```
