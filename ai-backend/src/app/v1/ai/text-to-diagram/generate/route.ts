@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL;
-const MODEL_NAME = process.env.MODEL_NAME;
+const MODEL_NAME = process.env.DEEPSEEK_MODEL_NAME;
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
@@ -11,6 +11,27 @@ interface Message {
 }
 
 async function callDeepSeekAPI(messages: Message[], maxTokens: number = 1000) {
+  // 验证环境变量
+  if (!DEEPSEEK_API_KEY) {
+    console.error('DEEPSEEK_API_KEY 环境变量未设置');
+    throw new Error('DeepSeek API key not configured');
+  }
+  if (!DEEPSEEK_BASE_URL) {
+    console.error('DEEPSEEK_BASE_URL 环境变量未设置');
+    throw new Error('DeepSeek base URL not configured');
+  }
+  if (!MODEL_NAME) {
+    console.error('DEEPSEEK_MODEL_NAME 环境变量未设置');
+    throw new Error('DeepSeek model name not configured');
+  }
+
+  console.log('发送请求到 DeepSeek:', {
+    url: `${DEEPSEEK_BASE_URL}/chat/completions`,
+    model: MODEL_NAME,
+    maxTokens,
+    messagesCount: messages.length
+  });
+
   try {
     const response = await axios.post(`${DEEPSEEK_BASE_URL}/chat/completions`, {
       model: MODEL_NAME,
@@ -24,8 +45,33 @@ async function callDeepSeekAPI(messages: Message[], maxTokens: number = 1000) {
       },
     });
 
+    console.log('DeepSeek API 响应状态:', response.status);
+    console.log('DeepSeek API 响应数据:', {
+      choices: response.data.choices?.length,
+      usage: response.data.usage
+    });
+
     return response.data.choices[0].message.content;
   } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('DeepSeek API Error Details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      if (error.response?.status === 400) {
+        throw new Error(`API request error: ${error.response.data?.error?.message || error.response.data?.message || 'Invalid request'}`);
+      }
+      if (error.response?.status === 401) {
+        throw new Error('Invalid API key');
+      }
+      if (error.response?.status === 429) {
+        throw new Error('Rate limit exceeded');
+      }
+    }
+    
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('DeepSeek API Error:', errorMessage);
     throw new Error('AI service temporarily unavailable');

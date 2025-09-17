@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL;
-const MODEL_NAME = process.env.MODEL_NAME;
+const MODEL_NAME = process.env.DEEPSEEK_MODEL_NAME;
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
